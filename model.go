@@ -49,13 +49,15 @@ func (m *Model) EX(start *BDD, goal *BDD) *BDD {
 func (m *Model) EG(condition *BDD) []*BDD {
 	result := make([]*BDD, 0)
 	last := condition
-	var prev *BDD
-	for prev == nil || !prev.Equals(last) {
+	var next *BDD
+	for {
 		result = append(result, last)
-		last := prev
-		prev = last.And(m.EX(condition, last))
+		next = last.And(m.EX(condition, last))
+		if next.Equals(last) {
+			return result
+		}
+		last = next
 	}
-	return result
 }
 
 // EU collects all state sets that can transition to goal such that a given
@@ -64,13 +66,15 @@ func (m *Model) EG(condition *BDD) []*BDD {
 func (m *Model) EU(step *BDD, goal *BDD) []*BDD {
 	result := make([]*BDD, 0)
 	last := goal
-	var prev *BDD
-	for prev == nil || !prev.Equals(last) {
+	var next *BDD
+	for {
 		result = append(result, last)
-		last := prev
-		prev = last.Or(m.EX(step, last))
+		next = last.Or(m.EX(step, last))
+		if next.Equals(last) {
+			return result
+		}
+		last = next
 	}
-	return result
 }
 
 // EF collects all state sets that can transition to goal in n steps.

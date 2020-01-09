@@ -24,7 +24,7 @@ func Node(id uint, t *BDD, f *BDD) *BDD {
 
 // Node checks if the given BDD is a node.
 func (p *BDD) Node() bool {
-	return p.ID == 0
+	return p.ID != 0
 }
 
 // Equals compares this BDD with the given BDD.
