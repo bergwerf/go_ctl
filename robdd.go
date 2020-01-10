@@ -83,17 +83,32 @@ func (p *BDD) Next() *BDD {
 	return p
 }
 
+// Set returns a BDD where the variable id is set to true/false.
+func (p *BDD) Set(id uint, value bool) *BDD {
+	if p.ID == id {
+		if value {
+			return p.True
+		}
+		return p.False
+	}
+	if p.Node() {
+		return Node(p.ID, p.True.Set(id, value), p.False.Set(id, value))
+	}
+	return p
+}
+
 // Apply applies the given binary operator to the BDDs p and q. The binary
 // operator is represented as a truth table for [00, 01, 10, 11].
 func (p *BDD) Apply(op []bool, q *BDD) *BDD {
-	// Push operator pownward.
-	if p.Node() && q.Node() {
-		id := min(p.ID, q.ID)
-		return Node(id, p.True.Apply(op, q.True), p.False.Apply(op, q.False))
-	} else if p.Node() {
-		return Node(p.ID, p.True.Apply(op, q), p.False.Apply(op, q))
-	} else if q.Node() {
-		return Node(q.ID, p.Apply(op, q.True), p.Apply(op, q.False))
+	// Push operator downward.
+	if p.Node() || q.Node() {
+		if p.ID == q.ID {
+			return Node(p.ID, p.True.Apply(op, q.True), p.False.Apply(op, q.False))
+		} else if p.Node() && p.ID < q.ID || !q.Node() {
+			return Node(p.ID, p.True.Apply(op, q), p.False.Apply(op, q))
+		} else { // if q.Node() && q.ID < p.ID || !p.Node() {
+			return Node(q.ID, p.Apply(op, q.True), p.Apply(op, q.False))
+		}
 	}
 	// Or evaluate operator.
 	i := 0
@@ -142,20 +157,6 @@ func (p *BDD) Xor(q *BDD) *BDD {
 // Contains determines if all true assignments in q are also true in this BDD.
 func (p *BDD) Contains(q *BDD) bool {
 	return q.Imply(p) == True
-}
-
-// Set returns a BDD where the variable id is set to true/false.
-func (p *BDD) Set(id uint, value bool) *BDD {
-	if p.ID == id {
-		if value {
-			return p.True
-		}
-		return p.False
-	}
-	if p.Node() {
-		return Node(id, p.True.Set(id, value), p.False.Set(id, value))
-	}
-	return p
 }
 
 // Exists determines if there exists a satisfying assignment for variable id.

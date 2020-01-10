@@ -15,7 +15,7 @@ type Model struct {
 
 // NewModel creates a new model.
 func NewModel() Model {
-	return Model{make(map[uint]string), make([]Trans, 0), True}
+	return Model{make(map[uint]string), make([]Trans, 0), nil}
 }
 
 // Bool creates a new boolean variable.
@@ -28,7 +28,11 @@ func (m *Model) Bool(name string) *BDD {
 // Add adds a new transition.
 func (m *Model) Add(condition *BDD, constraint *BDD) {
 	m.transitions = append(m.transitions, Trans{condition, constraint})
-	m.step = m.step.Or(condition.And(constraint))
+	if m.step == nil {
+		m.step = condition.And(constraint)
+	} else {
+		m.step = m.step.Or(condition.And(constraint))
+	}
 }
 
 // EX collects the set of states in start that transition to next in one step.
