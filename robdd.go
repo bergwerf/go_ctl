@@ -78,7 +78,7 @@ func (p *BDD) Compress(lookup map[BDD]*BDD) *BDD {
 // is encoded by setting the first bit to 1.
 func (p *BDD) Next() *BDD {
 	if p.Node() {
-		return Node(p.ID|1, p.True.Next(), p.False.Next())
+		return Node(varNextID(p.ID), p.True.Next(), p.False.Next())
 	}
 	return p
 }
@@ -157,6 +157,12 @@ func (p *BDD) Xor(q *BDD) *BDD {
 // Contains determines if all true assignments in q are also true in this BDD.
 func (p *BDD) Contains(q *BDD) bool {
 	return q.Imply(p) == True
+}
+
+// Intersects determines if there exists a truth assignment (state) that
+// satisfies both p and q (this is more liberal than Contains).
+func (p *BDD) Intersects(q *BDD) bool {
+	return q.And(p) != False
 }
 
 // Exists determines if there exists a satisfying assignment for variable id.

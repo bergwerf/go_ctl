@@ -1,47 +1,94 @@
 package ctl
 
-// Trans describes one transition.
-type Trans struct {
-	condition  *BDD
-	constraint *BDD
-}
+import (
+	"fmt"
+)
 
 // Model describes a set of variables and transitions.
 type Model struct {
-	variables   map[uint]string
-	transitions []Trans
-	step        *BDD
+	vars  map[uint]string
+	ints  []*Integer
+	trans *BDD
+}
+
+// For variable a with index i we define ID(a) := i<<1, ID(next(a)) := i<<1 | 1.
+func varID(i uint) uint {
+	return i << 1
+}
+
+// Since we usually store ID(a), the argument is i<<1.
+func varNextID(id uint) uint {
+	return id | 1
 }
 
 // NewModel creates a new model.
-func NewModel() Model {
-	return Model{make(map[uint]string), make([]Trans, 0), nil}
+func NewModel() *Model {
+	return &Model{
+		make(map[uint]string),
+		make([]*Integer, 0),
+		nil}
+}
+
+// Var creates a new variable identifier.
+func (m *Model) Var(name string) uint {
+	i := uint(len(m.vars) + 1)
+	m.vars[i] = name
+	return i
 }
 
 // Bool creates a new boolean variable.
 func (m *Model) Bool(name string) *BDD {
-	id := uint(len(m.variables) + 1)
-	m.variables[id] = name
-	return Node(id<<1, True, False)
+	return Node(varID(m.Var(name)), True, False)
+}
+
+// Int creates a new integer variable that contains the given upperbound.
+func (m *Model) Int(name string, upb uint) *Integer {
+	return m.Bin(name, bitcount(upb))
+}
+
+// Bin creates a new integer variable with the given number of bits.
+func (m *Model) Bin(name string, n uint) *Integer {
+	bits := make([]uint, n)
+	for i := range bits {
+		bits[i] = varID(m.Var(fmt.Sprintf("%v@%v", name, i)))
+	}
+	integer := &Integer{bits, true, True}
+	m.ints = append(m.ints, integer)
+	return integer
+}
+
+// Name gets a variable name.
+func (m *Model) Name(id uint) string {
+	return m.vars[id>>1]
+}
+
+// IntName gets an integer variable name.
+func (m *Model) IntName(i *Integer) string {
+	if i.variable {
+		bitID := i.bits[0]
+		lbl := m.Name(bitID)
+		return lbl[:len(lbl)-2]
+	}
+	// Compute value and return as string.
+	return fmt.Sprintf("%v", i.ConstValue())
 }
 
 // Add adds a new transition.
 func (m *Model) Add(condition *BDD, constraint *BDD) {
-	m.transitions = append(m.transitions, Trans{condition, constraint})
-	if m.step == nil {
-		m.step = condition.And(constraint)
+	if m.trans == nil {
+		m.trans = condition.And(constraint)
 	} else {
-		m.step = m.step.Or(condition.And(constraint))
+		m.trans = m.trans.Or(condition.And(constraint))
 	}
 }
 
 // EX collects the set of states in start that transition to next in one step.
 func (m *Model) EX(start *BDD, goal *BDD) *BDD {
 	// A state is included if there exists next(a1)...next(an) such that:
-	states := start.And(m.step).And(goal.Next())
+	states := start.And(m.trans).And(goal.Next())
 	// Eliminate exists.
-	for key := range m.variables {
-		states = states.Exists((key << 1) | 1)
+	for i := range m.vars {
+		states = states.Exists(varNextID(varID(i)))
 	}
 	return states
 }
