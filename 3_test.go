@@ -169,7 +169,7 @@ func findDeadlock(connections [][]int, routes [][]int, main []int) int {
 	// Check if it is possible to end up in a deadlock from an empty network.
 	deadlock := noDeadlock.Neg()
 	sets := m.EF(deadlock)
-	return leastSteps(emptyNetwork, sets)
+	return LeastSteps(emptyNetwork, sets)
 }
 
 // Subtract n from integer matrix (to convert to 0-based values).

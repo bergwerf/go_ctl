@@ -83,6 +83,15 @@ func (p *BDD) Next() *BDD {
 	return p
 }
 
+// Prev returns a BDD where all next variables are reverted to normal (e.g.
+// p.Next().Prev = p).
+func (p *BDD) Prev() *BDD {
+	if p.Node() {
+		return Node(varID(p.ID>>1), p.True.Prev(), p.False.Prev())
+	}
+	return p
+}
+
 // Set returns a BDD where the variable id is set to true/false.
 func (p *BDD) Set(id uint, value bool) *BDD {
 	if p.ID == id {

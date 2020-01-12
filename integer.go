@@ -65,7 +65,7 @@ func (i *Integer) Add(j *Integer, m *Model) *Integer {
 	// i + j = k
 	name := fmt.Sprintf("add(%v,%v)", m.IntName(i), m.IntName(j))
 	size := max(len(i.bits), len(j.bits)) + 1
-	k := m.Bin(name, uint(size))
+	k := m.bin(name, uint(size), true)
 
 	// Implicitly compute binary addition.
 	add := k.Bit(0).Eq(i.Bit(0).Xor(j.Bit(0)))

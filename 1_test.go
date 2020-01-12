@@ -24,7 +24,7 @@ func TestSimpleModel(t *testing.T) {
 	if len(sets) != 4 {
 		t.Error("expected four sets")
 	}
-	if leastSteps(init, sets) != 2 {
+	if LeastSteps(init, sets) != 2 {
 		t.Error("expected two steps")
 	}
 }

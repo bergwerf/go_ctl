@@ -71,7 +71,7 @@ func (a States) Len() int           { return len(a) }
 func (a States) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a States) Less(i, j int) bool { return a[i].Less(a[j]) }
 
-// Get all accepted assignments.
+// Get all accepted assignments (free variables are left unspecified).
 func unpackBDD(p *BDD) []map[uint]bool {
 	if p.Node() {
 		t := unpackBDD(p.True)
@@ -118,64 +118,83 @@ func expandStates(ids []uint, states []map[uint]bool) []map[uint]bool {
 	return expandStates(ids[1:], result)
 }
 
-// Get all accepted states within the state space of the given booleans and
-// integers. If all is set, then all variables that are fixed by p are included.
-//
-// If all == true, then some states may appear duplicated because auxiliary
-// variables are free depending on which transition underlies the given state.
-func unpackStates(m *Model,
-	booleans []uint, integers []*Integer, all bool, p *BDD) States {
-	ids := make([]uint, 0, len(booleans)) // Does not include cap for integers.
-	for _, id := range booleans {
-		ids = append(ids, id)
-	}
-	for _, i := range integers {
+// Get all accepted states in the given BDD.
+func unpackStates(m *Model, p *BDD) []map[uint]bool {
+	ids := make([]uint, len(m.userBools)) // Does not include cap for integers.
+	copy(m.userBools, ids)
+	for _, i := range m.userInts {
 		ids = append(ids, i.bits...)
 	}
-	states := expandStates(ids, unpackBDD(p))
+	return expandStates(ids, unpackBDD(p))
+}
 
-	// Split assignment into booleans and integers.
+// Process one state (expand names and compute integer values).
+// Auxiliary values are discarded unless aux is set.
+func processState(m *Model, state map[uint]bool, aux bool) *State {
+	integers := m.userInts
+	if aux {
+		integers = m.ints
+	}
+
+	bools := make(map[string]bool)
+	ints := make(map[string]uint, len(integers))
+
+	// Extract integer values.
+	for _, i := range integers {
+		// Compute value
+		value := uint(0)
+		for n, id := range i.bits {
+			if state[id] {
+				value += 1 << n
+			}
+			delete(state, id)
+		}
+
+		// Store value
+		name := m.IntName(i)
+		ints[name] = value
+	}
+
+	// Extract boolean values.
+	if aux {
+		// Copy what is left in the assignment.
+		for id, v := range state {
+			bools[m.Name(id)] = v
+		}
+	} else {
+		// Copy only what is a state boolean.
+		for _, id := range m.userBools {
+			bools[m.Name(id)] = state[id]
+		}
+	}
+
+	return &State{bools, ints}
+}
+
+// Process a list of states.
+//
+// Note: For reasons I do not yet understand auxiliary variables are sometimes
+// restricted in unexpected ways such as in the following example. To get a
+// clean list of states I remove any duplicate results here.
+//
+//  a | add(a,5) | add(a,a)
+// ---|----------|----------
+// 44 | 0        | 88
+// 44 | 1        | 88
+// 44 | 3        | 88
+// 44 | 5        | 88
+// 44 | 9        | 88
+// 44 | 17       | 88
+// 44 | 49       | 0
+// 44 | 113      | 88
+// 44 | 177      | 88
+func processStates(m *Model, states []map[uint]bool, aux bool) States {
 	result := make(States, 0, len(states))
-	for _, assignment := range states {
-		bools := make(map[string]bool)
-		ints := make(map[string]uint, len(m.ints))
-
-		// Extract integer values.
-		if all {
-			integers = m.ints
-		}
-		for _, i := range integers {
-			// Compute value
-			value := uint(0)
-			for n, id := range i.bits {
-				if assignment[id] {
-					value += 1 << n
-				}
-				delete(assignment, id)
-			}
-
-			// Store value
-			name := m.IntName(i)
-			ints[name] = value
-		}
-
-		// Extract boolean values.
-		if all {
-			for id, v := range assignment {
-				bools[m.Name(id)] = v
-			}
-
-		} else {
-			for _, id := range booleans {
-				bools[m.Name(id)] = assignment[id]
-			}
-		}
-
-		// Check if a state with these values already exists.
-		newState := &State{bools, ints}
+	for _, state := range states {
+		newState := processState(m, state, aux)
 		duplicate := false
-		for _, state := range result {
-			if newState.Equals(state) {
+		for _, otherState := range result {
+			if newState.Equals(otherState) {
 				duplicate = true
 				break
 			}

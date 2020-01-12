@@ -18,16 +18,6 @@ func bitcount(i uint) uint {
 	return uint(math.Floor(math.Log2(float64(i)) + 1))
 }
 
-// Get the least number of steps from init to some specification.
-func leastSteps(init *BDD, sets []*BDD) int {
-	for i := 1; i < len(sets); i++ {
-		if init.Intersects(sets[i]) {
-			return i
-		}
-	}
-	return -1
-}
-
 // ByStringLt defines a sort interface for ordinary string sorting.
 type ByStringLt []string
 
