@@ -16,3 +16,12 @@ I considered using hash tables to keep track of duplicate nodes globally
 (allowing pointer comparison to compare BDDs), but this presents a challence
 for garbage collection. To use a global hash table of nodes efficiently I
 believe it is necessary to implement manual reference counting.
+
+Idea
+----
+One idea to improve performance if I have time in the future; store all nodes
+that are created in a hash table, but do not even keep track of references.
+Simply delete the whole table now and then and rebuild it from all BDDs that are
+still significant (this does require tracking all top level BDDs). Since
+variable IDs are assigned sequentially, we could even use a straight array (but
+I doubt this is faster, certainly not simpler).

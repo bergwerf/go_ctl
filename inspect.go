@@ -51,7 +51,9 @@ func GenerateExample(m *Model, init *BDD, sets []*BDD) []*State {
 
 		// Create BDD that contains all sets that are reachable from this state
 		// using only one transition.
-		beam = m.EXInv(s, sets[i-1])
+		if i > 0 {
+			beam = m.EXInv(s, sets[i-1])
+		}
 	}
 
 	return path
