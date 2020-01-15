@@ -19,7 +19,7 @@ func Node(id uint, t *BDD, f *BDD) *BDD {
 	if t.Equals(f) {
 		return t
 	}
-	return &BDD{false, id, t, f}
+	return registerNodeRef(BDD{false, id, t, f})
 }
 
 // Node checks if the given BDD is a node.
@@ -107,16 +107,22 @@ func (p *BDD) Set(id uint, value bool) *BDD {
 }
 
 // Apply applies the given binary operator to the BDDs p and q. The binary
-// operator is represented as a truth table for [00, 01, 10, 11].
-func (p *BDD) Apply(op []bool, q *BDD) *BDD {
+// operator is represented as a truth table for [00, 01, 10, 11] in bit flags.
+func (p *BDD) Apply(op uint, q *BDD) *BDD {
 	// Push operator downward.
 	if p.Node() || q.Node() {
 		if p.ID == q.ID {
-			return Node(p.ID, p.True.Apply(op, q.True), p.False.Apply(op, q.False))
+			return Node(p.ID,
+				applyCached(op, p.True, q.True),
+				applyCached(op, p.False, q.False))
 		} else if p.Node() && p.ID < q.ID || !q.Node() {
-			return Node(p.ID, p.True.Apply(op, q), p.False.Apply(op, q))
+			return Node(p.ID,
+				applyCached(op, p.True, q),
+				applyCached(op, p.False, q))
 		} else { // if q.Node() && q.ID < p.ID || !p.Node() {
-			return Node(q.ID, p.Apply(op, q.True), p.Apply(op, q.False))
+			return Node(q.ID,
+				applyCached(op, p, q.True),
+				applyCached(op, p, q.False))
 		}
 	}
 	// Or evaluate operator.
@@ -127,10 +133,10 @@ func (p *BDD) Apply(op []bool, q *BDD) *BDD {
 	if q.Value {
 		i++
 	}
-	if op[i] {
-		return True
+	if (op>>(3-i))&1 == 0 {
+		return False
 	}
-	return False
+	return True
 }
 
 // Neg this
@@ -140,27 +146,27 @@ func (p *BDD) Neg() *BDD {
 
 // Imply q
 func (p *BDD) Imply(q *BDD) *BDD {
-	return p.Apply([]bool{true, true, false, true}, q)
+	return p.Apply(0b1101, q)
 }
 
 // And q
 func (p *BDD) And(q *BDD) *BDD {
-	return p.Apply([]bool{false, false, false, true}, q)
+	return p.Apply(0b0001, q)
 }
 
 // Or q
 func (p *BDD) Or(q *BDD) *BDD {
-	return p.Apply([]bool{false, true, true, true}, q)
+	return p.Apply(0b0111, q)
 }
 
 // Eq q
 func (p *BDD) Eq(q *BDD) *BDD {
-	return p.Apply([]bool{true, false, false, true}, q)
+	return p.Apply(0b1001, q)
 }
 
 // Xor q
 func (p *BDD) Xor(q *BDD) *BDD {
-	return p.Apply([]bool{false, true, true, false}, q)
+	return p.Apply(0b0110, q)
 }
 
 // Contains determines if all true assignments in q are also true in this BDD.

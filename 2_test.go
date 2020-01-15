@@ -40,7 +40,7 @@ func TestCrash(t *testing.T) {
 	i := m.Int("i", 11)
 	x := m.Bool("x")
 
-	t.Skip("Currently 11 bit addition is already too slow")
+	t.Skip("Currently 11 bit addition takes >11 seconds")
 
 	a1 := a.Add(b, m).Add(b, m)
 	b1 := b.Add(i, m)
