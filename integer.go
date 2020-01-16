@@ -81,6 +81,33 @@ func (i *Integer) Add(j *Integer, m *Model) *Integer {
 	return k
 }
 
+// AddCarry returns the integer which is the sum of i and j with carry bits.
+func (i *Integer) AddCarry(j *Integer, m *Model) *Integer {
+	if !i.variable && !j.variable {
+		return Int(i.ConstValue() + j.ConstValue())
+	}
+
+	// i + j + c = k
+	cName := fmt.Sprintf("carry(%v,%v)", m.IntName(i), m.IntName(j))
+	kName := fmt.Sprintf("add(%v,%v)", m.IntName(i), m.IntName(j))
+	size := max(len(i.bits), len(j.bits)) + 1
+	c := m.bin(cName, uint(size), true)
+	k := m.bin(kName, uint(size), true)
+
+	// i <-> j <-> k <-> c
+	add := c.Bit(0).Eq(False) // First carry bit is 0.
+	for n := 0; n < size; n++ {
+		ib, jb, cb, kb := i.Bit(n), j.Bit(n), c.Bit(n), k.Bit(n)
+		add = add.And(ib.Eq(jb).Eq(cb).Eq(kb)) // k = i + j + c (mod 2)
+		// The next carry bit is 1 iff (ib /\ jb) \/ (ib /\ cb) \/ (jb /\ cb).
+		add = add.And(c.Bit(n + 1).Eq(ib.And(jb).Or(ib.And(cb)).Or(jb.And(cb))))
+	}
+
+	// Constrain k by the addition of i and j and the constraints on i and j.
+	k.constraint = i.constraint.And(j.constraint).And(add)
+	return k
+}
+
 // Eq returns a BDD that is true when i == j.
 func (i *Integer) Eq(j *Integer) *BDD {
 	size := max(len(i.bits), len(j.bits))
