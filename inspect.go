@@ -37,17 +37,21 @@ func GenerateExample(m *Model, init *BDD, sets []*BDD) []*State {
 			panic("beam is empty")
 		}
 
-		// Add state to path and create BDD that only accepts this state.
+		// Create BDD that only accepts this state.
 		state := states[0]
-		path = append(path, processState(m, state, false))
 		s := True
-		for id, b := range state {
-			if !b {
-				s = s.And(Node(id, True, False))
-			} else {
-				s = s.And(Node(id, False, True))
+		for v, b := range state {
+			if !v.aux {
+				if b {
+					s = s.And(Node(v, True, False))
+				} else {
+					s = s.And(Node(v, False, True))
+				}
 			}
 		}
+
+		// IMPORTANT! processState deletes keys from the state map.
+		path = append(path, processState(m, state, false))
 
 		// Create BDD that contains all sets that are reachable from this state
 		// using only one transition.

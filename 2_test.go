@@ -15,8 +15,22 @@ func TestMarbleGame(t *testing.T) {
 	m.Add(a.Leq(Int(50)), a.Next().Eq(a.Add(a, m)))
 
 	// Check that 98 marbles are reachable in 6 steps.
-	if LeastSteps(a.Eq(Int(1)), m.EF(a.Eq(Int(98)))) != 6 {
+	init := a.Eq(Int(1))
+	sets := m.EF(a.Eq(Int(98)))
+	if LeastSteps(init, sets) != 6 {
 		t.Error("expected six steps")
+	}
+
+	// Helper to create an example state
+	s := func(a int) *State {
+		return &State{map[string]bool{}, map[string]uint{"a": uint(a)}}
+	}
+
+	// Check GenerateExample.
+	expected := States([]*State{s(1), s(6), s(11), s(22), s(44), s(49), s(98)})
+	example := States(GenerateExample(m, init, sets))
+	if !example.Equals(expected) {
+		t.Error("unexpected example")
 	}
 }
 

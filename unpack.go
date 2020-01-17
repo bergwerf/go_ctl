@@ -71,6 +71,19 @@ func (a States) Len() int           { return len(a) }
 func (a States) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a States) Less(i, j int) bool { return a[i].Less(a[j]) }
 
+// Equals checks if two lists of states are exactly the same.
+func (a States) Equals(b States) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, s := range a {
+		if !s.Equals(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // Get all accepted assignments (free variables are left unspecified).
 func unpackBDD(p *BDD) []map[*Variable]bool {
 	if p.Node() {

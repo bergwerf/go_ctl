@@ -96,7 +96,7 @@ func NewModel() *Model {
 
 // Var creates a new variable reference.
 func (m *Model) Var(name string, aux bool) *Variable {
-	// Fallback to naive variable sequence.
+	// Fallback to naive ordering.
 	seq := uint(2*len(m.vars) + 1)
 	i1, i2 := seq, seq+1
 
