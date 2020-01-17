@@ -4,53 +4,63 @@ import "fmt"
 
 // Integer represents a bounded integer in the range 0..(2^(len(bits))-1).
 type Integer struct {
-	bits       []uint // Variable identifiers or bit values for each bit
-	variable   bool   // Is this a variable?
-	constraint *BDD   // Constraint on the bits (if any)
+	bits       []*Variable // Variables or bit values for each bit
+	value      uint        // Constant integer value
+	variable   bool        // Is this a variable?
+	constraint *BDD        // Constraint on the bits (if any)
 }
 
 // Int creates a new integer constant.
 func Int(value uint) *Integer {
-	n := bitcount(value)
-	bits := make([]uint, n)
-	for i := range bits {
-		bits[i] = (value >> i) & 1
+	return &Integer{[]*Variable{}, value, false, True}
+}
+
+// Len returns the number of bits this integer uses.
+func (i *Integer) Len() int {
+	if i.variable {
+		return len(i.bits)
 	}
-	return &Integer{bits, false, True}
+	return int(bitcount(i.value))
+}
+
+// Name returns the name of this integer.
+func (i *Integer) Name() string {
+	if i.variable {
+		lbl := i.bits[0].Name
+		return lbl[:len(lbl)-2]
+	}
+	return fmt.Sprintf("%v", i.value)
+}
+
+// Aux returns if this is an auxiliary integer.
+func (i *Integer) Aux() bool {
+	if i.variable {
+		return i.bits[0].aux
+	}
+	return true
 }
 
 // Next returns the integer that identifies i in the next step.
 func (i *Integer) Next() *Integer {
 	if i.variable {
-		bits := make([]uint, len(i.bits))
-		for j := range bits {
-			bits[j] = varNextID(i.bits[j])
+		nextBits := make([]*Variable, len(i.bits))
+		for j, bit := range i.bits {
+			nextBits[j] = bit.Next()
 		}
-		return &Integer{bits, true, i.constraint.Next()}
+		return &Integer{nextBits, 0, true, i.constraint.Next()}
 	}
 	return i
 }
 
-// ConstValue returns the integer value of non-variables.
-func (i *Integer) ConstValue() uint {
-	sum := uint(0)
-	for n, v := range i.bits {
-		if v != 0 {
-			sum += 1 << n
-		}
-	}
-	return sum
-}
-
 // Bit returns a BDD representing the n-th bit.
 func (i *Integer) Bit(n int) *BDD {
-	if n >= len(i.bits) {
-		return False
-	}
 	if i.variable {
+		if n >= len(i.bits) {
+			return False
+		}
 		return Node(i.bits[n], True, False)
 	}
-	if i.bits[n] == 0 {
+	if (i.value>>n)&1 == 0 {
 		return False
 	}
 	return True
@@ -58,13 +68,18 @@ func (i *Integer) Bit(n int) *BDD {
 
 // Add returns the integer that is the result of adding i and j.
 func (i *Integer) Add(j *Integer, m *Model) *Integer {
+	return i.addNoCarry(j, m)
+}
+
+// Do not use carry bits.
+func (i *Integer) addNoCarry(j *Integer, m *Model) *Integer {
 	if !i.variable && !j.variable {
-		return Int(i.ConstValue() + j.ConstValue())
+		return Int(i.value + j.value)
 	}
 
 	// i + j = k
-	name := fmt.Sprintf("add(%v,%v)", m.IntName(i), m.IntName(j))
-	size := max(len(i.bits), len(j.bits)) + 1
+	name := fmt.Sprintf("add(%v,%v)", i.Name(), j.Name())
+	size := max(i.Len(), j.Len()) + 1
 	k := m.bin(name, uint(size), true)
 
 	// Implicitly compute binary addition.
@@ -81,16 +96,16 @@ func (i *Integer) Add(j *Integer, m *Model) *Integer {
 	return k
 }
 
-// AddCarry returns the integer which is the sum of i and j with carry bits.
-func (i *Integer) AddCarry(j *Integer, m *Model) *Integer {
+// Use carry bits.
+func (i *Integer) addCarry(j *Integer, m *Model) *Integer {
 	if !i.variable && !j.variable {
-		return Int(i.ConstValue() + j.ConstValue())
+		return Int(i.value + j.value)
 	}
 
 	// i + j + c = k
-	cName := fmt.Sprintf("carry(%v,%v)", m.IntName(i), m.IntName(j))
-	kName := fmt.Sprintf("add(%v,%v)", m.IntName(i), m.IntName(j))
-	size := max(len(i.bits), len(j.bits)) + 1
+	cName := fmt.Sprintf("carry(%v,%v)", i.Name(), j.Name())
+	kName := fmt.Sprintf("add(%v,%v)", i.Name(), j.Name())
+	size := max(i.Len(), j.Len()) + 1
 	c := m.bin(cName, uint(size), true)
 	k := m.bin(kName, uint(size), true)
 
@@ -110,7 +125,7 @@ func (i *Integer) AddCarry(j *Integer, m *Model) *Integer {
 
 // Eq returns a BDD that is true when i == j.
 func (i *Integer) Eq(j *Integer) *BDD {
-	size := max(len(i.bits), len(j.bits))
+	size := max(i.Len(), j.Len())
 	eq := True
 	for n := 0; n < size; n++ {
 		eq = eq.And(i.Bit(n).Eq(j.Bit(n)))
@@ -120,13 +135,13 @@ func (i *Integer) Eq(j *Integer) *BDD {
 
 // Lt returns a BDD that is true when i < j.
 func (i *Integer) Lt(j *Integer) *BDD {
-	size := max(len(i.bits), len(j.bits))
+	size := max(i.Len(), j.Len())
 	return i.constraint.And(j.constraint).And(i.leq(j, size-1, true))
 }
 
 // Leq returns a BDD that is true when i <= j.
 func (i *Integer) Leq(j *Integer) *BDD {
-	size := max(len(i.bits), len(j.bits))
+	size := max(i.Len(), j.Len())
 	return i.constraint.And(j.constraint).And(i.leq(j, size-1, false))
 }
 

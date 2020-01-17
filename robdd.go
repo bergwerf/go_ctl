@@ -3,28 +3,28 @@ package ctl
 // BDD represents a Binary pecision piagram.
 type BDD struct {
 	Value bool
-	ID    uint
+	Var   *Variable
 	True  *BDD
 	False *BDD
 }
 
 // True is a BDD true leaf.
-var True = &BDD{true, 0, nil, nil}
+var True = &BDD{true, nil, nil, nil}
 
 // False is a BDD false leaf.
-var False = &BDD{false, 0, nil, nil}
+var False = &BDD{false, nil, nil, nil}
 
 // Node returns a BDD node.
-func Node(id uint, t *BDD, f *BDD) *BDD {
+func Node(v *Variable, t *BDD, f *BDD) *BDD {
 	if t.Equals(f) {
 		return t
 	}
-	return registerNodeRef(BDD{false, id, t, f})
+	return registerNodeRef(BDD{false, v, t, f})
 }
 
 // Node checks if the given BDD is a node.
 func (p *BDD) Node() bool {
-	return p.ID != 0
+	return p.Var != nil
 }
 
 // Equals compares this BDD with the given BDD.
@@ -33,8 +33,8 @@ func (p *BDD) Equals(q *BDD) bool {
 	if p == q {
 		return true
 	}
-	// Same root ID? (or both a leaf)
-	if p.ID != q.ID {
+	// Referencing the same variable? (or both a leaf)
+	if p.Var != q.Var {
 		return false
 	}
 	// Same branches or leaf values?
@@ -44,64 +44,35 @@ func (p *BDD) Equals(q *BDD) bool {
 	return p.Value == q.Value
 }
 
-// Reduce eliminates redundant nodes. Since created a new node automatically
-// applies elimination, this method is not actually needed.
-func (p *BDD) Reduce() *BDD {
-	if p.Node() {
-		p.True = p.True.Reduce()
-		p.False = p.False.Reduce()
-		if p.True.Equals(p.False) {
-			return p.True
-		}
-	}
-	return p
-}
-
-// Compress merges puplicate branches. This results in some memory compression
-// and allows very quick pistinction of equal branches. Of course it also takes
-// some time so it is unclear when this improves the overal efficiency.
-func (p *BDD) Compress(lookup map[BDD]*BDD) *BDD {
-	if p.Node() {
-		p.True = p.True.Compress(lookup)
-		p.False = p.False.Compress(lookup)
-		ref := lookup[*p]
-		if ref != nil {
-			return ref
-		}
-		lookup[*p] = p
-	}
-	return p
-}
-
 // Next returns a BDD with all next variable identifiers. By convention all
 // variable ID's are left-shifted 1 place. The same variable in the next state
 // is encoded by setting the first bit to 1.
 func (p *BDD) Next() *BDD {
 	if p.Node() {
-		return Node(varNextID(p.ID), p.True.Next(), p.False.Next())
+		return Node(p.Var.Next(), p.True.Next(), p.False.Next())
 	}
 	return p
 }
 
-// Prev returns a BDD where all next variables are reverted to normal (e.g.
-// p.Next().Prev = p).
-func (p *BDD) Prev() *BDD {
+// Norm returns a BDD where all next variables are reverted to normal (e.g.
+// p.Next().Norm() = p).
+func (p *BDD) Norm() *BDD {
 	if p.Node() {
-		return Node(varID(p.ID>>1), p.True.Prev(), p.False.Prev())
+		return Node(p.Var.Norm(), p.True.Norm(), p.False.Norm())
 	}
 	return p
 }
 
-// Set returns a BDD where the variable id is set to true/false.
-func (p *BDD) Set(id uint, value bool) *BDD {
-	if p.ID == id {
+// Set returns a BDD where the variable v is set to true/false.
+func (p *BDD) Set(v *Variable, value bool) *BDD {
+	if p.Var == v {
 		if value {
 			return p.True
 		}
 		return p.False
 	}
 	if p.Node() {
-		return Node(p.ID, p.True.Set(id, value), p.False.Set(id, value))
+		return Node(p.Var, p.True.Set(v, value), p.False.Set(v, value))
 	}
 	return p
 }
@@ -111,16 +82,16 @@ func (p *BDD) Set(id uint, value bool) *BDD {
 func (p *BDD) Apply(op uint, q *BDD) *BDD {
 	// Push operator downward.
 	if p.Node() || q.Node() {
-		if p.ID == q.ID {
-			return Node(p.ID,
+		if p.Var == q.Var {
+			return Node(p.Var,
 				applyCached(op, p.True, q.True),
 				applyCached(op, p.False, q.False))
-		} else if p.Node() && p.ID < q.ID || !q.Node() {
-			return Node(p.ID,
+		} else if p.Node() && p.Var.Lt(q.Var) || !q.Node() {
+			return Node(p.Var,
 				applyCached(op, p.True, q),
 				applyCached(op, p.False, q))
-		} else { // if q.Node() && q.ID < p.ID || !p.Node() {
-			return Node(q.ID,
+		} else { // if q.Node() && q.Var.Lt(p.Var) || !p.Node() {
+			return Node(q.Var,
 				applyCached(op, p, q.True),
 				applyCached(op, p, q.False))
 		}
@@ -180,7 +151,7 @@ func (p *BDD) Intersects(q *BDD) bool {
 	return q.And(p) != False
 }
 
-// Exists determines if there exists a satisfying assignment for variable id.
-func (p *BDD) Exists(id uint) *BDD {
-	return p.Set(id, true).Or(p.Set(id, false))
+// Exists determines if there exists a satisfying assignment for variable v.
+func (p *BDD) Exists(v *Variable) *BDD {
+	return p.Set(v, true).Or(p.Set(v, false))
 }

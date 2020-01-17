@@ -31,8 +31,8 @@ func GenerateExample(m *Model, init *BDD, sets []*BDD) []*State {
 
 	// Go back to the goal.
 	for ; i >= 0; i-- {
-		// Unpack beam and pick one state.
-		states := unpackStates(m, beam)
+		// Unpack beam and pick one state (this could be done much quicker).
+		states := expandStates(m.vars, false, unpackBDD(beam))
 		if len(states) == 0 {
 			panic("beam is empty")
 		}

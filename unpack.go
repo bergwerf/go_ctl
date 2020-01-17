@@ -72,99 +72,86 @@ func (a States) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a States) Less(i, j int) bool { return a[i].Less(a[j]) }
 
 // Get all accepted assignments (free variables are left unspecified).
-func unpackBDD(p *BDD) []map[uint]bool {
+func unpackBDD(p *BDD) []map[*Variable]bool {
 	if p.Node() {
 		t := unpackBDD(p.True)
 		f := unpackBDD(p.False)
-		result := make([]map[uint]bool, len(t)+len(f))
+		result := make([]map[*Variable]bool, len(t)+len(f))
 		for i := 0; i < len(t); i++ {
-			t[i][p.ID] = true
+			t[i][p.Var] = true
 			result[i] = t[i]
 		}
 		for i := 0; i < len(f); i++ {
-			f[i][p.ID] = false
+			f[i][p.Var] = false
 			result[len(t)+i] = f[i]
 		}
 		return result
 	} else if p.Value {
-		return []map[uint]bool{map[uint]bool{}}
+		return []map[*Variable]bool{map[*Variable]bool{}}
 	} else {
-		return []map[uint]bool{}
+		return []map[*Variable]bool{}
 	}
 }
 
 // Expand free variables in the given states.
-func expandStates(ids []uint, states []map[uint]bool) []map[uint]bool {
-	if len(ids) == 0 {
+func expandStates(vars []*Variable, aux bool, states []map[*Variable]bool) []map[*Variable]bool {
+	if len(vars) == 0 {
 		return states
 	}
-	// Make sure all states assign the first id.
-	id := ids[0]
-	result := make([]map[uint]bool, 0, len(states))
+
+	// Get the head variable and check if we want it to be assigned.
+	v := vars[0]
+	if !aux && v.aux {
+		return expandStates(vars[1:], aux, states)
+	}
+
+	// Make sure all states assign v.
+	result := make([]map[*Variable]bool, 0, len(states))
 	for _, state := range states {
-		if _, in := state[id]; !in {
-			copy := make(map[uint]bool, len(state)+1)
+		if _, in := state[v]; !in {
+			copy := make(map[*Variable]bool, len(state)+1)
 			for k, v := range state {
 				copy[k] = v
 			}
-			state[id] = true
-			copy[id] = false
+			state[v] = true
+			copy[v] = false
 			result = append(result, state, copy)
 		} else {
 			result = append(result, state)
 		}
 	}
-	// Recurse on the tail.
-	return expandStates(ids[1:], result)
-}
-
-// Get all accepted states in the given BDD.
-func unpackStates(m *Model, p *BDD) []map[uint]bool {
-	ids := make([]uint, len(m.userBools)) // Does not include cap for integers.
-	copy(m.userBools, ids)
-	for _, i := range m.userInts {
-		ids = append(ids, i.bits...)
-	}
-	return expandStates(ids, unpackBDD(p))
+	return expandStates(vars[1:], aux, result)
 }
 
 // Process one state (expand names and compute integer values).
 // Auxiliary values are discarded unless aux is set.
-func processState(m *Model, state map[uint]bool, aux bool) *State {
-	integers := m.userInts
-	if aux {
-		integers = m.ints
-	}
-
+func processState(m *Model, state map[*Variable]bool, aux bool) *State {
 	bools := make(map[string]bool)
-	ints := make(map[string]uint, len(integers))
+	ints := make(map[string]uint, len(m.ints))
 
 	// Extract integer values.
-	for _, i := range integers {
+	for _, i := range m.ints {
+		if !aux && i.Aux() {
+			continue
+		}
+
 		// Compute value
 		value := uint(0)
-		for n, id := range i.bits {
-			if state[id] {
+		for n, v := range i.bits {
+			if state[v] {
 				value += 1 << n
 			}
-			delete(state, id)
+			delete(state, v)
 		}
 
 		// Store value
-		name := m.IntName(i)
-		ints[name] = value
+		ints[i.Name()] = value
 	}
 
 	// Extract boolean values.
-	if aux {
-		// Copy what is left in the assignment.
-		for id, v := range state {
-			bools[m.Name(id)] = v
-		}
-	} else {
-		// Copy only what is a state boolean.
-		for _, id := range m.userBools {
-			bools[m.Name(id)] = state[id]
+	for v, b := range state {
+		if aux || !v.aux {
+			bools[v.Name] = b
 		}
 	}
 
@@ -188,7 +175,7 @@ func processState(m *Model, state map[uint]bool, aux bool) *State {
 // 44 | 49       | 0
 // 44 | 113      | 88
 // 44 | 177      | 88
-func processStates(m *Model, states []map[uint]bool, aux bool) States {
+func processStates(m *Model, states []map[*Variable]bool, aux bool) States {
 	result := make(States, 0, len(states))
 	for _, state := range states {
 		newState := processState(m, state, aux)
