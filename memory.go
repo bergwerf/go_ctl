@@ -4,15 +4,15 @@ import (
 	"sync"
 )
 
-// Total number of cached elements.
+// Total number of cached elements (used for performance analysis).
 var _cacheCounter = 0
 
 // Global BDD lookup table. Since Go does not have weak pointers, there is no
-// way to determine if a pointer is still in used outside this map except for
-// a wrapping struct with lots of overhead. I decided to do no housekeeping.
+// way to determine if a pointer is still in use outside of this map except
+// using explicit reference counting. This is not yet implemented.
 var _lookup = new(sync.Map)
 
-// Register new BDD node reference (and get unique pointer).
+// Register a new BDD node reference (and get unique pointer).
 func registerNodeRef(node BDD) *BDD {
 	ref, new := _lookup.LoadOrStore(node, &node)
 	if new {
@@ -21,7 +21,7 @@ func registerNodeRef(node BDD) *BDD {
 	return ref.(*BDD)
 }
 
-// Cache of applying an operator to two BDDs.
+// BDD application cache.
 var _applyCache = new(sync.Map)
 
 type applyKey struct {
@@ -29,7 +29,7 @@ type applyKey struct {
 	p, q *BDD
 }
 
-// Return cashed operator application.
+// Apply operator to BDDs, or return a cached result.
 func applyCached(op uint, p *BDD, q *BDD) *BDD {
 	key := applyKey{op, p, q}
 	if result, in := _applyCache.Load(key); in {
